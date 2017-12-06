@@ -446,7 +446,7 @@ class WaveNetModel(object):
 
         return conv2
 
-    def _create_generator(self, input_batch, global_condition_batch):
+    def _create_generator(self, input_batch, global_condition_batch, batch_size=1):
         '''Construct an efficient incremental generator.'''
         init_ops = []
         push_ops = []
@@ -456,9 +456,9 @@ class WaveNetModel(object):
         q = tf.FIFOQueue(
             1,
             dtypes=tf.float32,
-            shapes=(self.batch_size, self.quantization_channels))
+            shapes=(batch_size, self.quantization_channels))
         init = q.enqueue_many(
-            tf.zeros((1, self.batch_size, self.quantization_channels)))
+            tf.zeros((1, batch_size, self.quantization_channels)))
 
         current_state = q.dequeue()
         push = q.enqueue([current_layer])
@@ -476,9 +476,9 @@ class WaveNetModel(object):
                     q = tf.FIFOQueue(
                         dilation,
                         dtypes=tf.float32,
-                        shapes=(self.batch_size, self.residual_channels))
+                        shapes=(batch_size, self.residual_channels))
                     init = q.enqueue_many(
-                        tf.zeros((dilation, self.batch_size,
+                        tf.zeros((dilation, batch_size,
                                   self.residual_channels)))
 
                     current_state = q.dequeue()
@@ -529,8 +529,7 @@ class WaveNetModel(object):
                 input_batch,
                 depth=self.quantization_channels,
                 dtype=tf.float32)
-            shape = [self.batch_size, -1, self.quantization_channels]
-            encoded = tf.reshape(encoded, shape)
+            encoded = tf.squeeze(encoded, 2)
         return encoded
 
     def _embed_gc(self, global_condition):
@@ -653,9 +652,7 @@ class WaveNetModel(object):
                 # Cut off the samples corresponding to the receptive field
                 # for the first predicted sample.
                 target_output = tf.slice(
-                    tf.reshape(
-                        encoded,
-                        [self.batch_size, -1, self.quantization_channels]),
+                    encoded,
                     [0, self.receptive_field, 0],
                     [-1, -1, -1])
                 target_output = tf.reshape(target_output,
